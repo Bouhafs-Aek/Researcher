@@ -1,13 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from .agents import ResearchPlanner
-from .connectors import OpenAlexConnector
 from .config import settings
 from .db import init_db
 from .orchestrator import DynamicOrchestrator
+from .retrieval import MultiSourceRetriever
 from .schemas import OrchestratorUpdate, PlanRequest, SearchRequest
 
 app = FastAPI(title="Researcher", version="0.1.0")
 orchestrator = DynamicOrchestrator()
+retriever = MultiSourceRetriever()
 
 @app.on_event("startup")
 def startup() -> None:
@@ -21,7 +22,7 @@ async def health() -> dict[str, str]:
 @app.post("/search")
 async def search(request: SearchRequest):
     try:
-        records = await OpenAlexConnector().search(request.query, request.max_results)
+        records = await retriever.search(request.query, request.max_results)
         return {"count": len(records), "results": [r.model_dump() for r in records]}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Literature provider error: {exc}") from exc
@@ -46,12 +47,9 @@ async def orchestrate_start(request: PlanRequest):
 @app.post("/orchestrate/update")
 async def orchestrate_update(request: OrchestratorUpdate):
     state = orchestrator.start("runtime research state")
-    state = orchestrator.update(
-        state,
-        evidence_count=request.evidence_count,
-        coverage_score=request.coverage_score,
-        disagreements=request.disagreements,
-    )
+    state = orchestrator.update(state, evidence_count=request.evidence_count,
+                                coverage_score=request.coverage_score,
+                                disagreements=request.disagreements)
     return {
         "coverage_score": state.coverage_score,
         "evidence_count": state.evidence_count,
