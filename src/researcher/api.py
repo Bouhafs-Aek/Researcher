@@ -6,7 +6,7 @@ from .agents import ResearchPlanner
 from .config import settings
 from .db import SessionLocal, init_db
 from .evidence import verify_claim
-from .models import Claim as ClaimModel, Passage, Project, Source
+from .models import Claim as ClaimModel, Passage, Source
 from .orchestrator import DynamicOrchestrator
 from .pipeline import ResearchPipeline
 from .reporting import build_html_report
