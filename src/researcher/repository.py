@@ -3,7 +3,10 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Claim, EvidenceLink, GapDossier, Passage, Project, ResearchRun, ResearchTask, Source, VerificationEvent
+from .models import (
+    Claim, EvidenceLink, GapDossier, Passage, Project, ResearchRun, ResearchTask,
+    Source, SourceVersion, VerificationEvent,
+)
 
 
 class Repository:
@@ -48,6 +51,14 @@ class Repository:
         self.session.flush()
         return source
 
+    def add_source_version(self, source_id: int, content_type: str, retrieval_url: str,
+                           sha256: str, status: str = "retrieved") -> SourceVersion:
+        version = SourceVersion(source_id=source_id, content_type=content_type,
+                               retrieval_url=retrieval_url, sha256=sha256, status=status)
+        self.session.add(version)
+        self.session.flush()
+        return version
+
     def add_passage(self, source_id: int, text: str, locator: str | None = None) -> Passage:
         passage = Passage(source_id=source_id, text=text, locator=locator)
         self.session.add(passage)
@@ -62,6 +73,8 @@ class Repository:
 
     def link_evidence(self, claim_id: int, passage_id: int, relation: str = "supports",
                       confidence: float | None = None) -> EvidenceLink:
+        if confidence is not None and not 0 <= confidence <= 1:
+            raise ValueError("confidence must be between 0 and 1")
         link = EvidenceLink(claim_id=claim_id, passage_id=passage_id,
                             relation=relation, confidence=confidence)
         self.session.add(link)
@@ -72,6 +85,9 @@ class Repository:
         event = VerificationEvent(claim_id=claim_id, status=status, reason=reason)
         self.session.add(event)
         self.session.flush()
+        claim = self.session.get(Claim, claim_id)
+        if claim is not None:
+            claim.status = status
         return event
 
     def add_gap(self, project_id: int, statement: str, classification: str,
@@ -85,6 +101,16 @@ class Repository:
     def list_sources(self, project_id: int) -> list[Source]:
         return list(self.session.scalars(
             select(Source).where(Source.project_id == project_id).order_by(Source.year.desc())
+        ))
+
+    def list_source_versions(self, source_id: int) -> list[SourceVersion]:
+        return list(self.session.scalars(
+            select(SourceVersion).where(SourceVersion.source_id == source_id).order_by(SourceVersion.id.desc())
+        ))
+
+    def list_passages(self, source_id: int) -> list[Passage]:
+        return list(self.session.scalars(
+            select(Passage).where(Passage.source_id == source_id).order_by(Passage.id)
         ))
 
     def list_claims(self, project_id: int) -> list[Claim]:
