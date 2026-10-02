@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException\nfrom fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from .agents import ResearchPlanner
@@ -28,7 +28,7 @@ def startup() -> None:
         init_db()
 
 
-@app.get("/health")
+@app.get("/dashboard")\ndef dashboard():\n    return FileResponse("src/researcher/dashboard.html", media_type="text/html")\n\n\n@app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
