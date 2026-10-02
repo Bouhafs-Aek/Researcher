@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 import httpx
 
+from .connectors import OpenAlexConnector
 from .schemas import SourceRecord
 
 
