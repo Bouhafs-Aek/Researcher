@@ -26,6 +26,21 @@ class Claim(BaseModel):
     claim_type: str = "atomic"
 
 
+class ClaimCreate(BaseModel):
+    text: str
+    passage_id: int
+    claim_type: str = "atomic"
+    relation: str = "supports"
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class ClaimVerify(BaseModel):
+    source_found: bool = True
+    passage_found: bool = True
+    interpretation_checked: bool = False
+    counterevidence_checked: bool = False
+
+
 class GapCandidate(BaseModel):
     statement: str
     classification: str
