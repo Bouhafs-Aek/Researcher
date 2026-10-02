@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Researcher Dashboard</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#f6f7f9;color:#1d2430}
+header{padding:24px 5%;background:#fff;border-bottom:1px solid #ddd}
+main{max-width:1200px;margin:24px auto;padding:0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:18px}
+.big{font-size:30px;font-weight:700}
+table{width:100%;border-collapse:collapse;background:#fff;margin-top:12px}
+th,td{padding:10px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
+input,button{padding:10px;border:1px solid #bbb;border-radius:8px}
+button{cursor:pointer}
+section{margin:24px 0}
+small{color:#68707d}
+</style>
+</head>
+<body>
+<header><strong>Researcher</strong> · Evidence-first scientific research intelligence</header>
+<main>
+<section class="card">
+<h2>Open a project</h2>
+<input id="project" type="number" placeholder="Project ID">
+<button onclick="loadProject()">Load</button>
+<div id="message"><small>Create a project with the API, then enter its ID.</small></div>
+</section>
+<section class="grid">
+<div class="card"><small>Sources</small><div class="big" id="sources">—</div></div>
+<div class="card"><small>Claims</small><div class="big" id="claims">—</div></div>
+<div class="card"><small>Candidate gaps</small><div class="big" id="gaps">—</div></div>
+<div class="card"><small>Verified claims</small><div class="big" id="verified">—</div></div>
+</section>
+<section><h2>Sources</h2><table><thead><tr><th>Title</th><th>Year</th><th>DOI</th><th>Provider</th></tr></thead><tbody id="sourceRows"></tbody></table></section>
+<section><h2>Claims</h2><table><thead><tr><th>Claim</th><th>Status</th></tr></thead><tbody id="claimRows"></tbody></table></section>
+<section><h2>Gaps</h2><table><thead><tr><th>Classification</th><th>Statement</th><th>Status</th></tr></thead><tbody id="gapRows"></tbody></table></section>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function loadProject(){
+ const id=document.getElementById('project').value;
+ if(!id)return;
+ const [e,g]=await Promise.all([
+   fetch('/projects/'+id+'/evidence').then(r=>r.json()),
+   fetch('/projects/'+id+'/gaps').then(r=>r.json())
+ ]);
+ const sources=e.sources||[], claims=e.claims||[], gaps=Array.isArray(g)?g:[];
+ document.getElementById('sources').textContent=sources.length;
+ document.getElementById('claims').textContent=claims.length;
+ document.getElementById('gaps').textContent=gaps.length;
+ document.getElementById('verified').textContent=claims.filter(x=>x.status==='independently_corroborated').length;
+ document.getElementById('sourceRows').innerHTML=sources.map(x=>'<tr><td>'+esc(x.title)+'</td><td>'+esc(x.year)+'</td><td>'+esc(x.doi)+'</td><td>'+esc(x.provider)+'</td></tr>').join('');
+ document.getElementById('claimRows').innerHTML=claims.map(x=>'<tr><td>'+esc(x.text)+'</td><td>'+esc(x.status)+'</td></tr>').join('');
+ document.getElementById('gapRows').innerHTML=gaps.map(x=>'<tr><td>'+esc(x.classification)+'</td><td>'+esc(x.statement)+'</td><td>'+esc(x.status)+'</td></tr>').join('');
+ document.getElementById('message').innerHTML='<small>Project '+esc(id)+' loaded. Dashboard reads the same evidence store as the report.</small>';
+}
+</script>
+</body>
+</html>
