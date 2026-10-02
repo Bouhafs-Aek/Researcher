@@ -1,4 +1,3 @@
-from datetime import datetime
 from pydantic import BaseModel, Field
 
 class ResearchProjectCreate(BaseModel):
@@ -26,3 +25,11 @@ class GapCandidate(BaseModel):
     statement: str
     classification: str
     evidence_ids: list[str] = []
+
+class PlanRequest(BaseModel):
+    question: str
+
+class OrchestratorUpdate(BaseModel):
+    evidence_count: int = Field(ge=0)
+    coverage_score: float = Field(ge=0, le=1)
+    disagreements: int = Field(default=0, ge=0)
