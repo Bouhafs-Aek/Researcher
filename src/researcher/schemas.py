@@ -33,3 +33,7 @@ class OrchestratorUpdate(BaseModel):
     evidence_count: int = Field(ge=0)
     coverage_score: float = Field(ge=0, le=1)
     disagreements: int = Field(default=0, ge=0)
+
+class RunQuery(BaseModel):
+    query: str
+    max_results: int = Field(default=20, ge=1, le=100)
