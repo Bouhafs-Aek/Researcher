@@ -5,25 +5,22 @@ from .agents import ResearchPlanner
 from .config import settings
 from .db import SessionLocal, init_db
 from .orchestrator import DynamicOrchestrator
+from .pipeline import ResearchPipeline
 from .repository import Repository
 from .retrieval import MultiSourceRetriever
-from .schemas import OrchestratorUpdate, PlanRequest, ResearchProjectCreate, SearchRequest
+from .schemas import (
+    OrchestratorUpdate, PlanRequest, ResearchProjectCreate, RunQuery, SearchRequest,
+)
 
 app = FastAPI(title="Researcher", version="0.1.0")
 orchestrator = DynamicOrchestrator()
 retriever = MultiSourceRetriever()
+pipeline = ResearchPipeline(retriever)
 
 @app.on_event("startup")
 def startup() -> None:
     if settings.app_env != "test":
         init_db()
-
-def db_session():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -48,16 +45,36 @@ def create_run(project_id: int):
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
         run = repo.create_run(project_id)
-        tasks = orchestrator.start(project.question)
-        for item in tasks.tasks.values():
+        state = orchestrator.start(project.question)
+        for item in state.tasks.values():
             repo.add_task(run.id, item.task.role.value, item.task.objective)
         session.commit()
+        return {"run_id": run.id, "project_id": project_id, "status": run.status}
+    finally:
+        session.close()
+
+@app.post("/runs/{run_id}/retrieve")
+async def retrieve_run(run_id: int, request: RunQuery):
+    session: Session = SessionLocal()
+    try:
+        repo = Repository(session)
+        run = repo.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        result = await pipeline.retrieve_and_ingest(
+            session, run.project_id, run_id, request.query, request.max_results
+        )
         return {
-            "run_id": run.id,
-            "project_id": project_id,
-            "status": run.status,
-            "tasks": repo.list_tasks(run.id),
+            "run_id": result.run_id,
+            "status": "retrieved",
+            "retrieved": result.retrieved,
+            "stored": result.stored,
         }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=502, detail=f"Retrieval pipeline error: {exc}") from exc
     finally:
         session.close()
 
@@ -70,9 +87,7 @@ def get_run(run_id: int):
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")
         return {
-            "id": run.id,
-            "project_id": run.project_id,
-            "status": run.status,
+            "id": run.id, "project_id": run.project_id, "status": run.status,
             "coverage_score": run.coverage_score,
             "tasks": [
                 {"id": t.id, "role": t.role, "objective": t.objective, "status": t.status}
@@ -90,8 +105,15 @@ def get_evidence(project_id: int):
         if repo.get_project(project_id) is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return {
-            "sources": [s.__dict__ | {"_sa_instance_state": None} for s in repo.list_sources(project_id)],
-            "claims": [c.__dict__ | {"_sa_instance_state": None} for c in repo.list_claims(project_id)],
+            "sources": [
+                {"id": s.id, "title": s.title, "doi": s.doi, "year": s.year,
+                 "venue": s.venue, "url": s.url, "provider": s.provider}
+                for s in repo.list_sources(project_id)
+            ],
+            "claims": [
+                {"id": c.id, "text": c.text, "claim_type": c.claim_type, "status": c.status}
+                for c in repo.list_claims(project_id)
+            ],
         }
     finally:
         session.close()
